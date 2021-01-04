@@ -3,8 +3,11 @@
 
 # All environment variables used after the container first start
 # must be defined here.
-# more information : https://github.com/osixia/docker-light-baseimage
+# More information : https://github.com/osixia/docker-light-baseimage,
+# https://github.com/osixia/docker-openldap/tree/stable/example/extend-osixia-openldap/environment 
 
 # General container configuration
-# see table 5.1 in http://www.openldap.org/doc/admin24/slapdconf2.html for the available log levels.
+
+# Debugging
+# See table 5.1 in http://www.openldap.org/doc/admin24/slapdconf2.html for the available log levels.
 LDAP_LOG_LEVEL: 0
