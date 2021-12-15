@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # set -x (bash debug) if log level is trace
-# https://github.com/osixia/docker-light-baseimage/blob/stable/image/tool/log-helper
+# https://github.com/osixia/docker-light-baseimage/blob/master/image/tool/log-helper
 log-helper level eq trace && set -x
 
 SCHEMAS=$1
@@ -24,7 +24,7 @@ for schema in ${SCHEMAS} ; do
     echo "include ${schema}" >> convert.dat
 done
 
-slaptest -f convert.dat -F .
+slaptest -f convert.dat -F . 2>&1 | log-helper debug
 
 if [ $? -ne 0 ] ; then
     log-helper error "slaptest conversion failed"

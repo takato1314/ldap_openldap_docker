@@ -2,7 +2,7 @@
 set -o pipefail
 
 # set -x (bash debug) if log level is trace
-# https://github.com/osixia/docker-light-baseimage/blob/stable/image/tool/log-helper
+# https://github.com/osixia/docker-light-baseimage/blob/master/image/tool/log-helper
 log-helper level eq trace && set -x
 
 # Reduce maximum number of number of open file descriptors to 1024
@@ -37,20 +37,6 @@ file_env() {
 file_env 'LDAP_ADMIN_PASSWORD'
 file_env 'LDAP_CONFIG_PASSWORD'
 file_env 'LDAP_READONLY_USER_PASSWORD'
-
-# Seed ldif from internal path if specified
-file_env 'LDAP_SEED_INTERNAL_LDIF_PATH'
-if [ ! -z "${LDAP_SEED_INTERNAL_LDIF_PATH}" ]; then
-  mkdir -p /container/service/slapd/assets/config/bootstrap/ldif/custom/
-  cp -R ${LDAP_SEED_INTERNAL_LDIF_PATH}/*.ldif /container/service/slapd/assets/config/bootstrap/ldif/custom/
-fi
-
-# Seed schema from internal path if specified
-file_env 'LDAP_SEED_INTERNAL_SCHEMA_PATH'
-if [ ! -z "${LDAP_SEED_INTERNAL_SCHEMA_PATH}" ]; then
-  mkdir -p /container/service/slapd/assets/config/bootstrap/schema/custom/
-  cp -R ${LDAP_SEED_INTERNAL_SCHEMA_PATH}/*.schema /container/service/slapd/assets/config/bootstrap/schema/custom/
-fi
 
 # create dir if they not already exists
 [ -d /var/lib/ldap ] || mkdir -p /var/lib/ldap
@@ -104,6 +90,28 @@ LDAP_TLS_CRT_PATH="${CONTAINER_SERVICE_DIR}/slapd/assets/certs/$LDAP_TLS_CRT_FIL
 LDAP_TLS_KEY_PATH="${CONTAINER_SERVICE_DIR}/slapd/assets/certs/$LDAP_TLS_KEY_FILENAME"
 LDAP_TLS_DH_PARAM_PATH="${CONTAINER_SERVICE_DIR}/slapd/assets/certs/$LDAP_TLS_DH_PARAM_FILENAME"
 
+copy_internal_seed_if_exists() {
+  local src=$1
+  local dest=$2
+  if [ ! -z "${src}" ]; then
+    echo  -e "Copy from internal path ${src} to ${dest}"
+    cp -R ${src} ${dest}
+  fi
+}
+
+# Copy seed files from internal path if specified
+file_env 'LDAP_SEED_INTERNAL_LDAP_TLS_CRT_FILE'
+copy_internal_seed_if_exists "${LDAP_SEED_INTERNAL_LDAP_TLS_CRT_FILE}" "${LDAP_TLS_CRT_PATH}"
+file_env 'LDAP_SEED_INTERNAL_LDAP_TLS_KEY_FILE'
+copy_internal_seed_if_exists "${LDAP_SEED_INTERNAL_LDAP_TLS_KEY_FILE}" "${LDAP_TLS_KEY_PATH}"
+file_env 'LDAP_SEED_INTERNAL_LDAP_TLS_CA_CRT_FILE'
+copy_internal_seed_if_exists "${LDAP_SEED_INTERNAL_LDAP_TLS_CA_CRT_FILE}" "${LDAP_TLS_CA_CRT_PATH}"
+file_env 'LDAP_SEED_INTERNAL_LDAP_TLS_DH_PARAM_FILE'
+copy_internal_seed_if_exists "${LDAP_SEED_INTERNAL_LDAP_TLS_DH_PARAM_FILE}" "${LDAP_TLS_DH_PARAM_PATH}"
+file_env 'LDAP_SEED_INTERNAL_SCHEMA_PATH'
+copy_internal_seed_if_exists "${LDAP_SEED_INTERNAL_SCHEMA_PATH}" "${CONTAINER_SERVICE_DIR}/slapd/assets/config/bootstrap/schema/custom"
+file_env 'LDAP_SEED_INTERNAL_LDIF_PATH'
+copy_internal_seed_if_exists "${LDAP_SEED_INTERNAL_LDIF_PATH}" "${CONTAINER_SERVICE_DIR}/slapd/assets/config/bootstrap/ldif/custom"
 
 # CONTAINER_SERVICE_DIR and CONTAINER_STATE_DIR variables are set by
 # the baseimage run tool more info : https://github.com/osixia/docker-light-baseimage
@@ -390,7 +398,7 @@ EOF
       log-helper info "Add TLS config..."
 
       # generate a certificate and key with ssl-helper tool if LDAP_CRT and LDAP_KEY files don't exists
-      # https://github.com/osixia/docker-light-baseimage/blob/stable/image/service-available/:ssl-tools/assets/tool/ssl-helper
+      # https://github.com/osixia/docker-light-baseimage/blob/master/image/service-available/:ssl-tools/assets/tool/ssl-helper
       ssl-helper $LDAP_SSL_HELPER_PREFIX $LDAP_TLS_CRT_PATH $LDAP_TLS_KEY_PATH $LDAP_TLS_CA_CRT_PATH
 
       # create DHParamFile if not found
@@ -482,6 +490,13 @@ EOF
       [[ -f "$WAS_STARTED_WITH_REPLICATION" ]] && rm -f "$WAS_STARTED_WITH_REPLICATION"
       echo "export PREVIOUS_HOSTNAME=${HOSTNAME}" > $WAS_STARTED_WITH_REPLICATION
 
+    elif [ "${LDAP_REPLICATION,,}" == "own" ]; then
+
+      log-helper info "Not touching replication config..."
+
+      [[ -f "$WAS_STARTED_WITH_REPLICATION" ]] && rm -f "$WAS_STARTED_WITH_REPLICATION"
+      echo "export PREVIOUS_HOSTNAME=${HOSTNAME}" > $WAS_STARTED_WITH_REPLICATION
+
     else
 
       log-helper info "Disable replication config..."
@@ -493,17 +508,17 @@ EOF
       get_ldap_base_dn
       LDAP_CONFIG_PASSWORD_ENCRYPTED=$(slappasswd -s "$LDAP_CONFIG_PASSWORD")
       LDAP_ADMIN_PASSWORD_ENCRYPTED=$(slappasswd -s "$LDAP_ADMIN_PASSWORD")
-      sed -i "s|{{ LDAP_CONFIG_PASSWORD_ENCRYPTED }}|${LDAP_CONFIG_PASSWORD_ENCRYPTED}|g" ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin-pw/ldif/06-root-pw-change.ldif
-      sed -i "s|{{ LDAP_ADMIN_PASSWORD_ENCRYPTED }}|${LDAP_ADMIN_PASSWORD_ENCRYPTED}|g" ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin-pw/ldif/06-root-pw-change.ldif
-      sed -i "s|{{ LDAP_BACKEND }}|${LDAP_BACKEND}|g" ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin-pw/ldif/06-root-pw-change.ldif
-      sed -i "s|{{ LDAP_ADMIN_PASSWORD_ENCRYPTED }}|${LDAP_ADMIN_PASSWORD_ENCRYPTED}|g" ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin-pw/ldif/07-admin-pw-change.ldif
-      sed -i "s|{{ LDAP_BASE_DN }}|${LDAP_BASE_DN}|g" ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin-pw/ldif/07-admin-pw-change.ldif
+      sed -i "s|{{ LDAP_CONFIG_PASSWORD_ENCRYPTED }}|${LDAP_CONFIG_PASSWORD_ENCRYPTED}|g" ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin/root-password-change.ldif
+      sed -i "s|{{ LDAP_ADMIN_PASSWORD_ENCRYPTED }}|${LDAP_ADMIN_PASSWORD_ENCRYPTED}|g" ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin/root-password-change.ldif
+      sed -i "s|{{ LDAP_BACKEND }}|${LDAP_BACKEND}|g" ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin/root-password-change.ldif
+      sed -i "s|{{ LDAP_ADMIN_PASSWORD_ENCRYPTED }}|${LDAP_ADMIN_PASSWORD_ENCRYPTED}|g" ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin/admin-password-change.ldif
+      sed -i "s|{{ LDAP_BASE_DN }}|${LDAP_BASE_DN}|g" ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin/admin-password-change.ldif
 
-      for f in $(find ${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin-pw/ldif -type f -name \*.ldif  | sort); do
-        ldap_add_or_modify "$f"
-      done
+      ldap_add_or_modify "${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin/root-password-change.ldif"
+      ldap_add_or_modify "${CONTAINER_SERVICE_DIR}/slapd/assets/config/admin/admin-password-change.ldif" | log-helper debug || true
+
     else
-       touch "$WAS_ADMIN_PASSWORD_SET"
+        touch "$WAS_ADMIN_PASSWORD_SET"
     fi
 
     #

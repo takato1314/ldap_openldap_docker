@@ -1,6 +1,8 @@
 # Use osixia/light-baseimage
 # sources: https://github.com/osixia/docker-light-baseimage
-FROM osixia/light-baseimage:1.2.0
+FROM osixia/light-baseimage:develop-dev
+
+ARG OPENLDAP_PACKAGE_VERSION=2.4.57
 
 ARG LDAP_OPENLDAP_GID
 ARG LDAP_OPENLDAP_UID
@@ -17,14 +19,14 @@ RUN if [ -z "${LDAP_OPENLDAP_GID}" ]; then groupadd -g 911 -r openldap; else gro
 RUN echo "deb http://ftp.debian.org/debian buster-backports main" >> /etc/apt/sources.list
 
 # Install OpenLDAP, ldap-utils and ssl-tools from the (backported) baseimage and clean apt-get files
-# sources: https://github.com/osixia/docker-light-baseimage/blob/stable/image/tool/add-service-available
-#          https://github.com/osixia/docker-light-baseimage/blob/stable/image/service-available/:ssl-tools/download.sh
+# sources: https://github.com/osixia/docker-light-baseimage/blob/master/image/tool/add-service-available
+#          https://github.com/osixia/docker-light-baseimage/blob/master/image/service-available/:ssl-tools/download.sh
 RUN echo "path-include /usr/share/doc/krb5*" >> /etc/dpkg/dpkg.cfg.d/docker && apt-get -y update \
     && /container/tool/add-service-available :ssl-tools \
     && LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get -t buster-backports install -y --no-install-recommends \
     ca-certificates \
     curl \
-    ldap-utils \
+    ldap-utils=${OPENLDAP_PACKAGE_VERSION}\* \
     libsasl2-modules \
     libsasl2-modules-db \
     libsasl2-modules-gssapi-mit \
@@ -32,8 +34,8 @@ RUN echo "path-include /usr/share/doc/krb5*" >> /etc/dpkg/dpkg.cfg.d/docker && a
     libsasl2-modules-otp \
     libsasl2-modules-sql \
     openssl \
-    slapd \
-    slapd-contrib \
+    slapd=${OPENLDAP_PACKAGE_VERSION}\* \
+    slapd-contrib=${OPENLDAP_PACKAGE_VERSION}\* \
     krb5-kdc-ldap \
     && curl -o pqchecker.deb -SL http://www.meddeb.net/pub/pqchecker/deb/8/pqchecker_${PQCHECKER_VERSION}_amd64.deb \
     && echo "${PQCHECKER_MD5} *pqchecker.deb" | md5sum -c - \
@@ -48,7 +50,7 @@ RUN echo "path-include /usr/share/doc/krb5*" >> /etc/dpkg/dpkg.cfg.d/docker && a
 ADD service /container/service
 
 # Use baseimage install-service script
-# https://github.com/osixia/docker-light-baseimage/blob/stable/image/tool/install-service
+# https://github.com/osixia/docker-light-baseimage/blob/master/image/tool/install-service
 RUN /container/tool/install-service
 
 # Add default env variables

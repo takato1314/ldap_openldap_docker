@@ -2,11 +2,10 @@
 # https://github.com/osixia/docker-openldap 
 # License: https://github.com/osixia/docker-openldap/blob/stable/LICENSE
 
-FROM osixia/openldap:1.4.0
+FROM osixia/openldap:1.5.0
 ARG BUILD_DATE
 ARG VCS_REF
 LABEL maintainer="Osixia <http://www.osixia.net>"
-LABEL maintainer="Alex Soh <alex.soh@bertelsmann.de>"
 LABEL org.label-schema.build-date=$BUILD_DATE \
     org.label-schema.name="OpenLdap - Alpine" \
     org.label-schema.description="Provides a Docker image for OpenLdap DC on Alpine Linux." \
